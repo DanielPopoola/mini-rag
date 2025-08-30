@@ -141,7 +141,7 @@ class DocumentChunker:
                 j += 1
 
             # Safety: if nothing fits (shouldn't happen due to _slice_long_sentence), force-slice
-            if j == 1:
+            if j == i:
                 long_subparts = self._slice_long_sentence(sentences[i])
                 for part in long_subparts:
                     if not part.strip():
