@@ -77,27 +77,28 @@ class RetrievalSystem:
         query: str,
         initial_results: List[Dict[str, Any]],
         final_k: int
-    ): List[Dict[str, Any]]
-    """
-    Rerank results using cross-encoder for better relevance
-    """
-    query_doc_pairs = [[query, r["text"]] for r in initial_results]
+    ) -> List[Dict[str, Any]]:
 
-    rerank_scores: List[float] = []
-    # Process in batches to avoid OOM
-    for i in range(0, len(query_doc_pairs), self.reranker_batch_size):
-        batch = query_doc_pairs[i: i + self.reranker_batch_size]
-        batch_scores = self.reranker.predict(batch)
-        rerank_scores.extend(batch_scores)
+        """
+        Rerank results using cross-encoder for better relevance
+        """
+        query_doc_pairs = [[query, r["text"]] for r in initial_results]
 
-    # Merge results with scores 
-    for i, result in enumerate(initial_results):
-        result["rerank_score"] = float(rerank_scores[i])
-        result["original_score"] = float(result.get("score", 0.0))
+        rerank_scores: List[float] = []
+        # Process in batches to avoid OOM
+        for i in range(0, len(query_doc_pairs), self.reranker_batch_size):
+            batch = query_doc_pairs[i: i + self.reranker_batch_size]
+            batch_scores = self.reranker.predict(batch)
+            rerank_scores.extend(batch_scores)
 
-    # Sort by rerank score
-    reranked = sorted(initial_results, key=lambda x: x["rerank_score"], reverse=True)
-    return reranked[:final_k]
+        # Merge results with scores 
+        for i, result in enumerate(initial_results):
+            result["rerank_score"] = float(rerank_scores[i])
+            result["original_score"] = float(result.get("score", 0.0))
+
+        # Sort by rerank score
+        reranked = sorted(initial_results, key=lambda x: x["rerank_score"], reverse=True)
+        return reranked[:final_k]
 
     def get_retrieval_stats(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
