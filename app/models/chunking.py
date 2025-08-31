@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import List, Dict, Any
-import re
 from transformers import AutoTokenizer
 import nltk
 import logging
@@ -53,6 +52,7 @@ class DocumentChunker:
             nltk.download("punkt")
 
     def _token_count(self, text: str) -> int:
+        """Returns the number of tokens in a string"""
         return len(self.tokenizer.encode(text, add_special_tokens=False))
 
     def _split_into_sentences(self, text: str) -> List[str]:
@@ -172,26 +172,4 @@ class DocumentChunker:
         return chunks
 
 
-
-def test_chunking():
-    chunker = DocumentChunker()
-    with open("/home/daniel/mini-rag/seplat.txt", "r") as test:
-        test_text = test.read()
-    test_metadata = {"source": "test.txt", "title": "Test Document"}
-    
-    try:
-        chunks = chunker.chunk_text(test_text, test_metadata)
-        print(f"Success! Created {len(chunks)} chunks")
-        for i, chunk in enumerate(chunks):
-            print(f"Chunk {i}: {chunk}")
-            
-    except Exception as e:
-        print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
-
-if __name__ == "__main__":
-    test_chunking()
-
-
-__all__ = ["DocumentChunker"]            
+__all__ = ["DocumentChunker"]

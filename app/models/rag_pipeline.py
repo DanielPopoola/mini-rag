@@ -110,7 +110,7 @@ def test_integration():
         vector_db.create_collection(dimension=384)
         
         print("3. Creating LLM...")
-        llm = LocalLLM()
+        llm = OpenRouterLLM(model_name="deepseek/deepseek-chat-v3.1:free")
         
         print("4. Creating chunker...")
         chunker = DocumentChunker()  # Use default constructor

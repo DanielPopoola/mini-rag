@@ -37,7 +37,7 @@ def get_vector_db():
 
 @st.cache_resource
 def get_llm():
-    return OpenRouterLLM(model_name="openai/gpt-oss-20b:free")
+    return OpenRouterLLM(model_name="deepseek/deepseek-chat-v3.1:free")
 
 @st.cache_resource
 def get_rag_pipeline():
