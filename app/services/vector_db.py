@@ -25,7 +25,13 @@ class VectorDatabase:
         url = url or os.getenv("QDRANT_URL", "localhost")
         api_key = api_key or os.getenv("QDRANT_API_KEY")
 
-        self.client = QdrantClient(url=url, api_key=api_key)
+        try:
+            self.client = QdrantClient(url=url, port=6333, api_key=api_key)
+            self.client.get_collections()
+            logger.info(f"Successfully connected to Qdrant at {url}:6333")
+        except Exception as e:
+            logger.error(f"Failed to connect to Qdrant at {url}:6333: {e}")
+            raise
         self.collection_name = "documents"
 
     def create_collection(self, dimension: int = 384, force_recreate: bool = False):

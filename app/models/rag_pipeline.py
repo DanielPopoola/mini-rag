@@ -6,7 +6,7 @@ from .embeddings import EmbeddingModel
 from .chunking import DocumentChunker
 from .retrieval import RetrievalSystem
 from ..services.vector_db import VectorDatabase
-from ..services.llm import LocalLLM, GenerationResponse
+from ..services.llm import LocalLLM, GenerationResponse, OpenRouterLLM
 
 
 logger = logging.getLogger(__name__)

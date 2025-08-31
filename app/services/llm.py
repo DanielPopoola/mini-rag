@@ -128,6 +128,7 @@ class LocalLLM:
             3. If the context doesn't contain enough information, say so clearly
             4. Provide a confidence level: high, medium, low, or no_answer
             5. Be concise but complete
+            6. Your response MUST be a valid JSON object. DO NOT include any other text or conversational filler.
 
             Respond in this exact JSON format:
             {{
@@ -221,7 +222,7 @@ class LocalLLM:
 class OpenRouterLLM:
     def __init__(
         self,
-        model_name: str = "google/gemma-7b-it", 
+        model_name: str = "openai/gpt-oss-20b:free", 
         api_key: str = None,
         timeout: int = 120
     ):

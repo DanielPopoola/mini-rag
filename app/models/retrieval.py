@@ -16,7 +16,7 @@ class RetrievalSystem:
         vector_db: VectorDatabase,
         reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
         reranker_batch_size: int = 16,
-        rerank_threshold: float = 0.0,
+        rerank_threshold: float = -10.0,
     ):
         """
         Retrieval system with bi-encoder vector search + cross-encoder reranking.
@@ -103,6 +103,7 @@ class RetrievalSystem:
 
         # Sort by rerank score
         reranked = sorted(initial_results, key=lambda x: x["rerank_score"], reverse=True)
+        logger.info(f"Reranked results before filtering: {reranked}")
 
         # Filter by threshold and return top-k
         filtered_results = [r for r in reranked if r["rerank_score"] >= rerank_threshold]
