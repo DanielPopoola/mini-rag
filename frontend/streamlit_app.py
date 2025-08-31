@@ -3,6 +3,7 @@ import sys
 import os
 from pathlib import Path
 import time
+import logging
 
 # Add project root to Python path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -12,7 +13,9 @@ from app.models.embeddings import EmbeddingModel
 from app.models.chunking import DocumentChunker
 from app.models.retrieval import RetrievalSystem
 from app.services.vector_db import VectorDatabase
-from app.services.llm import LocalLLM
+from app.services.llm import LocalLLM, OpenRouterLLM
+
+logger = logging.getLogger(__name__)
 
 # --- App Configuration ---
 st.set_page_config(
@@ -29,12 +32,12 @@ def get_embedding_model():
 @st.cache_resource
 def get_vector_db():
     vector_db = VectorDatabase()
-    vector_db.create_collections(dimension=384)
+    vector_db.create_collection(dimension=384)
     return vector_db
 
 @st.cache_resource
 def get_llm():
-    return LocalLLM()
+    return OpenRouterLLM(model_name="openai/gpt-oss-20b:free")
 
 @st.cache_resource
 def get_rag_pipeline():
@@ -111,6 +114,14 @@ with st.sidebar:
         except Exception as e:
             st.error(f"Error getting collection info: {e}")
     source_filter = st.text_input("Filter by source (optional)")
+    rerank_threshold = st.slider(
+        "Rerank Threshold", 
+        min_value=-10.0, 
+        max_value=10.0, 
+        value=0.0, 
+        step=0.1,
+        help="Minimum score for a retrieved chunk to be considered relevant."
+    )
 
 
 
@@ -146,7 +157,7 @@ if prompt := st.chat_input("What do you want to know?"):
                 st.stop()
             
             try:
-                response = rag_pipeline.query(prompt, source_filter if source_filter else None)
+                response = rag_pipeline.query(prompt, source_filter if source_filter else None, rerank_threshold=rerank_threshold)
 
                 if response["confidence"] == "no_answer":
                     st.warning("⚠️ I don't have enough information to answer this question.\

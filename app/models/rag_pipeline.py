@@ -55,7 +55,7 @@ class RAGPipeline:
             "source": metadata.get("source", "unknown")
         }
 
-    def query(self, question: str, source_filter: Optional[str] = None) -> Dict[str, Any]:
+    def query(self, question: str, source_filter: Optional[str] = None, rerank_threshold: Optional[float] = None) -> Dict[str, Any]:
         """
         Complete RAG query: retrieve -> rerank -> generate
         """
@@ -65,7 +65,8 @@ class RAGPipeline:
         logger.info(f"Processing query: {question}")
         retrieved_chunks = self.retrieval_system.retrieve_and_rerank(
             query=question,
-            source_filter=source_filter
+            source_filter=source_filter,
+            rerank_threshold=rerank_threshold
         )
 
         retrieval_time = time.time() - start_time
@@ -74,7 +75,7 @@ class RAGPipeline:
         logger.info("Generating answer...")
         generation_start = time.time()
 
-        response = self.llm.generate_answer(question, retrieved_chunks)
+        response = self.llm.generate_answer(question, retrieved_chunks, 1000)
 
         generation_time = time.time() - generation_start
         total_time = time.time() - start_time
@@ -95,3 +96,51 @@ class RAGPipeline:
             },
             "retrieval_stats": self.retrieval_system.get_retrieval_stats(retrieved_chunks)
         }
+
+
+
+def test_integration():
+    try:
+        # Initialize components exactly like Streamlit does
+        print("1. Creating embedding model...")
+        embedding_model = EmbeddingModel()
+        
+        print("2. Creating vector DB...")
+        vector_db = VectorDatabase()
+        vector_db.create_collection(dimension=384)
+        
+        print("3. Creating LLM...")
+        llm = LocalLLM()
+        
+        print("4. Creating chunker...")
+        chunker = DocumentChunker()  # Use default constructor
+        
+        print("5. Creating retrieval system...")
+        retrieval_system = RetrievalSystem(
+            embedding_model=embedding_model,
+            vector_db=vector_db
+        )
+        
+        print("6. Creating RAG pipeline...")
+        rag_pipeline = RAGPipeline(
+            embedding_model=embedding_model,
+            vector_db=vector_db,
+            retrieval_system=retrieval_system,
+            llm=llm,
+            chunker=chunker
+        )
+        
+        print("7. Testing document processing...")
+        test_text = "This is a test document. It has multiple sentences. Each sentence should be processed correctly."
+        test_metadata = {"source": "test.txt", "title": "Test Document"}
+        
+        result = rag_pipeline.process_document(test_text, test_metadata)
+        print(f"✅ Success! Result: {result}")
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    test_integration()

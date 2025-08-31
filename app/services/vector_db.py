@@ -28,7 +28,7 @@ class VectorDatabase:
         self.client = QdrantClient(url=url, api_key=api_key)
         self.collection_name = "documents"
 
-    def create_collections(self, dimension: int = 384, force_recreate: bool = False):
+    def create_collection(self, dimension: int = 384, force_recreate: bool = False):
         """Create collection optimized for our embedding model"""
 
         # Check if collection exists
@@ -42,7 +42,7 @@ class VectorDatabase:
 
         if not collection_exists:
             logger.info(f"Creating collection: {self.collection_name}")
-            self.client.create_collections(
+            self.client.create_collection(
                 collection_name=self.collection_name,
                 vectors_config=VectorParams(
                     size=dimension,
@@ -75,17 +75,17 @@ class VectorDatabase:
             raise ValueError("Number of chunks must match number of embeddings")
 
         points = []
-        for i, (chunk, embedding) in enumerate(zip(chunk, embeddings)):
+        for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             point = PointStruct(
                 id=str(uuid.uuid4()),
                 vector=embedding.tolist(),
                 payload={
                     "text": chunk["text"],
-                    "chunk_id": chunk["chunk_id"], 
-                    "token_count": chunk["token_count"],
+                    "chunk_id": chunk["metadata"]["chunk_id"],
+                    "token_count": chunk["metadata"]["num_tokens"],
                     "source": chunk["metadata"].get("source", "unknown"),
                     "title": chunk["metadata"].get("title", ""),
-                    "chunk_position": chunk["metadata"]["chunk_position"],
+                    "chunk_position": chunk["metadata"]["chunk_index"],
                 }
             )
             points.append(point)

@@ -16,6 +16,7 @@ class RetrievalSystem:
         vector_db: VectorDatabase,
         reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
         reranker_batch_size: int = 16,
+        rerank_threshold: float = 0.0,
     ):
         """
         Retrieval system with bi-encoder vector search + cross-encoder reranking.
@@ -32,6 +33,7 @@ class RetrievalSystem:
         # Cross-enocder for reranking
         self.reranker = CrossEncoder(reranker_model)
         self.reranker_batch_size = reranker_batch_size
+        self.rerank_threshold = rerank_threshold
 
         # Retrieval parameters
         self.initial_k = 20
@@ -42,11 +44,13 @@ class RetrievalSystem:
         query: str,
         source_filter: Optional[str] = None,
         final_k: Optional[int] = None,
+        rerank_threshold: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
         """
         Complete retrieval pipeline: embed -> search -> rerank.
         """
         final_k = final_k or self.final_k
+        rerank_threshold = rerank_threshold or self.rerank_threshold
 
         # Convert query to embedding
         logger.info(f"Embedding query: {query[:50]}...")
@@ -67,7 +71,7 @@ class RetrievalSystem:
         # Rerank
         logger.info(f"Reranking candidates to top-{final_k}")
         try:
-            return self._rerank_results(query, initial_results, final_k)
+            return self._rerank_results(query, initial_results, final_k, rerank_threshold)
         except Exception as e:
             logger.error(f"Reranker failed: {e}. Returning vector search results only.")
             return initial_results[:final_k]
@@ -76,7 +80,8 @@ class RetrievalSystem:
         self,
         query: str,
         initial_results: List[Dict[str, Any]],
-        final_k: int
+        final_k: int,
+        rerank_threshold: float,
     ) -> List[Dict[str, Any]]:
 
         """
@@ -98,7 +103,13 @@ class RetrievalSystem:
 
         # Sort by rerank score
         reranked = sorted(initial_results, key=lambda x: x["rerank_score"], reverse=True)
-        return reranked[:final_k]
+
+        # Filter by threshold and return top-k
+        filtered_results = [r for r in reranked if r["rerank_score"] >= rerank_threshold]
+        
+        logger.info(f"Reranking kept {len(filtered_results)} of {len(reranked)} results with threshold {rerank_threshold}")
+
+        return filtered_results[:final_k]
 
     def get_retrieval_stats(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
