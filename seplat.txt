@@ -1,0 +1,16 @@
+To: Management, Seplat Energy Plc
+From: Daniel Popoola, Project Neptune Initiative
+Date: August 13, 2025
+Subject: Proposal for a Strategic Partnership: Solving Port Inefficiency with Project Neptune
+
+1. The Challenge: An Industry-Wide Data Bottleneck
+
+For any major energy importer in Nigeria, including Seplat Energy, a significant operational challenge persists: the high costs and logistical inefficiencies caused by a lack of real-time visibility into jetty availability. This data gap frequently leads to costly demurrage fees and complicates vessel scheduling. The core of the problem is the absence of a reliable, centralized, real-time source for jetty status information. The current industry standard often relies on a mix of commercial vessel tracking feeds and manual methods like phone calls and emails to log jetty information. This fragmented approach means any operational picture is only as good as the last phone call, making the process a reactive patch, not a proactive cure. This raises a critical question: Instead of each company building a better way to consume fragmented information, what if we collaborated to create the source of truth itself? 6
+
+
+2. The Solution: A Collaborative Industry Platform
+
+Project Neptune is an initiative to solve this problem for the entire industry by developing a platform that benefits both importers and terminal operators. The proposal is to approach jetty owners and offer them a simple, free-to-use web application. A designated person at their facility could use this tool to update their jetty's status live (e.g., "Available," "Occupied," "Undergoing Maintenance"). This single action would populate a shared platform with perfectly accurate, real-time data. The immediate question is why jetty owners would agree to help importers avoid demurrage fees, which can be a source of revenue for them. The answer is that Project Neptune offers a value proposition that fundamentally improves their own business, far outweighing any intermittent income from demurrage. 3. The Value Proposition for Jetty Owners
+
+The success of this initiative hinges on offering jetty owners a compelling value proposition, not asking for a concession. The platform is designed as a free upgrade to their operational infrastructure. Jetty owners who adopt the platform stand to gain:
+●	Dramatically Reduced Administrative Workload: Their staff can update their status once to inform everyone, eliminating the hours spent answering repetitive calls and emails from various importers.

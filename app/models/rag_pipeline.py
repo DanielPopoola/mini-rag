@@ -131,11 +131,17 @@ def test_integration():
         )
         
         print("7. Testing document processing...")
-        test_text = "This is a test document. It has multiple sentences. Each sentence should be processed correctly."
-        test_metadata = {"source": "test.txt", "title": "Test Document"}
+        with open("/home/daniel/mini-rag/seplat.txt", "r") as f:
+            test_text = f.read()
+        test_metadata = {"source": "seplat.txt", "title": "Seplat"}
         
         result = rag_pipeline.process_document(test_text, test_metadata)
         print(f"✅ Success! Result: {result}")
+
+        print("8. Testing query...")
+        question = "What is the proposal for?"
+        query_result = rag_pipeline.query(question)
+        print(f"✅ Success! Query Result: {query_result}")
         
     except Exception as e:
         print(f"❌ Error: {e}")
