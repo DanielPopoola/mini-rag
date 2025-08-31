@@ -127,6 +127,8 @@ langsmith==0.4.21
     # via
     #   langchain
     #   langchain-core
+lxml==6.0.1
+    # via python-docx
 markdown-it-py==4.0.0
     # via rich
 markupsafe==3.0.2
@@ -229,8 +231,12 @@ pydeck==0.9.1
     # via streamlit
 pygments==2.19.2
     # via rich
+pypdf==6.0.0
+    # via mini-rag (pyproject.toml)
 python-dateutil==2.9.0.post0
     # via pandas
+python-docx==1.2.0
+    # via mini-rag (pyproject.toml)
 python-dotenv==1.1.1
     # via uvicorn
 python-multipart==0.0.20
@@ -350,6 +356,7 @@ typing-extensions==4.15.0
     #   openai
     #   pydantic
     #   pydantic-core
+    #   python-docx
     #   referencing
     #   rich-toolkit
     #   sentence-transformers
