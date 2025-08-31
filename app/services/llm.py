@@ -4,7 +4,12 @@ import logging
 import requests
 from dataclasses import dataclass
 import openai
+import os
+from dotenv import load_dotenv
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+dotenv_path = os.path.join(BASE_DIR, ".env")
+load_dotenv(dotenv_path)
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +27,9 @@ class GenerationResponse:
 class LocalLLM:
     def __init__(
         self,
-        model_name: str = "llama3.1:8b",
-        base_url: str = "http://localhost:11434/v1"
+        model_name: str = "gemma3:1b",
+        base_url: str = "http://localhost:11434",
+        timeout: int = 120
     ):
         """
         Initialize connection to local Ollama instance
@@ -31,10 +37,12 @@ class LocalLLM:
         Args:
             model_name: Ollama model (llama3.1:8b, mistral:7b, etc.)
             base_url: Ollama API endpoint
+            timeout: Request timeout in seconds
         """
         self.model_name = model_name
         self.base_url = base_url
         self.api_url = f"{base_url}/api/generate"
+        self.timeout = timeout
 
         # Test connection and ensure model is available
         self._ensure_model_available()
@@ -150,7 +158,7 @@ class LocalLLM:
         }
 
         try:
-            response = requests.post(self.api_url, json=payload, timeout=60)
+            response = requests.post(self.api_url, json=payload, timeout=self.timeout)
             response.raise_for_status()
 
             result = response.json()
@@ -166,7 +174,7 @@ class LocalLLM:
         try:
             # Try to extract JSON from response
             start = raw_response.find('{')
-            end = raw_response.find('}') + 1
+            end = raw_response.rfind('}') + 1
 
             if start == -1 or end == 0:
                 raise ValueError("No JSON found in response")
@@ -176,7 +184,7 @@ class LocalLLM:
 
             # Build citations list
             citations = []
-            cited_sources = parsed.get("cited_source", [])
+            cited_sources = parsed.get("cited_sources", [])
 
             for source_num in cited_sources:
                 if 1 <= source_num <= len(chunks):
@@ -208,4 +216,134 @@ class LocalLLM:
                 confidence="low",
                 reasoning="Failed to parse structured response",
                 token_count=len(raw_response.split())
+            )
+
+class OpenRouterLLM:
+    def __init__(
+        self,
+        model_name: str = "google/gemma-7b-it", 
+        api_key: str = None,
+        timeout: int = 120
+    ):
+        self.model_name = model_name
+        self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
+        if not self.api_key:
+            raise ValueError("OPENROUTER_API_KEY environment variable not set.")
+
+        self.client = openai.OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=self.api_key,
+        )
+        self.timeout = timeout
+
+    def generate_answer(
+        self, 
+        query: str, 
+        retrieved_chunks: List[Dict[str, Any]], 
+        max_tokens: int = 1000
+    ) -> GenerationResponse:
+        if not retrieved_chunks:
+            return GenerationResponse(
+                answer="I don't have enough information to answer this question.",
+                citations=[],
+                confidence="no_answer",
+                reasoning="No relevant chunks were retrieved",
+                token_count=0
+            )
+
+        system_prompt, user_prompt = self._build_rag_prompt(query, retrieved_chunks)
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=0.1,
+                response_format={"type": "json_object"},
+                timeout=self.timeout,
+            )
+            raw_response = completion.choices[0].message.content
+            token_count = completion.usage.total_tokens
+            
+            return self._parse_response(raw_response, retrieved_chunks, token_count)
+
+        except openai.APIError as e:
+            logger.error(f"Error calling OpenRouter API: {e}")
+            raise RuntimeError(f"LLM generation failed: {e}")
+
+    def _build_rag_prompt(self, query: str, chunks: List[Dict[str, Any]]) -> tuple[str, str]:
+        system_prompt = ( """
+        You are a helpful AI assistant that answers questions based on provided context.
+        Follow these rules:
+        1. Answer the question using ONLY the information provided in the context.
+        2. Use inline citations [1], [2], etc. that correspond to the numbered sources.
+        3. If the context doesn't contain enough information, say so clearly.
+        4. Provide a confidence level: high, medium, low, or no_answer.
+        5. Be concise but complete.
+        Respond in the exact JSON format specified by the user.
+        """ )
+
+        context_parts = []
+        for i, chunk in enumerate(chunks, 1):
+            source = chunk["metadata"]["source"]
+            title = chunk["metadata"].get("title", "Unknown")
+            context_parts.append(f"[{i}] {chunk['text']}\nSource: {title} ({source})")
+        context = "\n\n".join(context_parts)
+
+        user_prompt = f"""
+            CONTEXT:
+            {context}
+
+            JSON Response Format:
+            {{
+                "answer": "Your answer here with inline citations [1], [2]...",
+                "confidence": "high/medium/low/no_answer",
+                "reasoning": "Brief explanation of your confidence level",
+                "cited_sources": [1, 2, ...]
+            }}
+
+            QUESTION: {query}
+        """
+        return system_prompt, user_prompt
+
+    def _parse_response(self, raw_response: str, chunks: List[Dict[str, Any]], token_count: int) -> GenerationResponse:
+        try:
+            parsed = json.loads(raw_response)
+
+            citations = []
+            cited_sources = parsed.get("cited_sources", [])
+
+            for source_num in cited_sources:
+                if 1 <= source_num <= len(chunks):
+                    chunk = chunks[source_num - 1]
+                    citations.append({
+                        "citation_id": source_num,
+                        "text": chunk["text"][:200] + "..." if len(chunk["text"]) > 200 else chunk["text"],
+                        "source": chunk["metadata"]["source"],
+                        "title": chunk["metadata"].get("title", "Unknown"),
+                        "rerank_score": chunk.get("rerank_score", 0.0)
+                    })
+
+            return GenerationResponse(
+                answer=parsed.get("answer", "No answer provided"),
+                citations=citations,
+                confidence=parsed.get("confidence", "low"),
+                reasoning=parsed.get("reasoning", "No reasoning provided"),
+                token_count=token_count
+            )
+
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            logger.error(f"Failed to parse LLM response: {e}")
+            logger.error(f"Raw response: {raw_response[:500]}...")
+            return GenerationResponse(
+                answer=raw_response,
+                citations=[],
+                confidence="low",
+                reasoning="Failed to parse structured response from API.",
+                token_count=token_count
             )
