@@ -2,7 +2,13 @@ from __future__ import annotations
 from typing import List, Dict, Any
 import re
 from transformers import AutoTokenizer
+import nltk
+import logging
 
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DocumentChunker:
     """
@@ -41,46 +47,17 @@ class DocumentChunker:
         self.sentence_separator = sentence_separator
         if not ( 0 < self.overlap_size < self.chunk_size):
             raise ValueError("overlap_size must be > 0 and < chunk_size")
+        try:
+            nltk.data.find("tokenizers/punkt")
+        except Exception:
+            nltk.download("punkt")
 
     def _token_count(self, text: str) -> int:
         return len(self.tokenizer.encode(text, add_special_tokens=False))
 
     def _split_into_sentences(self, text: str) -> List[str]:
-        """
-        Lightweight sentence splitter with basic abbreviation handling.
-        Falls back to paragraph-level if punctuation is scarce.
-        """
-        # Normalize excessive spaces; keep newlines for paragraph clues
-        text = re.sub(r"[\t]+", " ", text)
-        paragraphs = re.split(r"\n{2,}", text.strip())
-        sentences: List[str] = []
-
-        abbr = r"(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|vs|etc|e\.g|i\.e|U\.S|U\.K|No)\."
-        pattern = re.compile(
-            rf"""
-            ( # capture a sentence
-            (?: # start with something that's not just a terminator
-            (?!{abbr}) # don't split right after common abbreviations
-            [^\n.!?…] # not an immediate terminator
-            | [^.!?…] # general fallback
-            )
-            .*? # minimally match content
-            (?:[.!?…]+(?=\s)|$) # end with terminator(s) or end of string
-            )
-            """,
-            re.VERBOSE | re.UNICODE | re.DOTALL,
-        )
-
-        for para in paragraphs:
-            p = para.strip()
-            if not p:
-                continue
-            found = pattern.findall(p)
-            if found:
-                sentences.extend(s.strip() for s in found if s.strip())
-            else:
-                sentences.append(p)
-        return sentences
+        """Split text into sentences using NLTK."""
+        return nltk.sent_tokenize(text)
 
     def _slice_long_sentence(self, sentence: str) -> List[str]:
         """Split a very long sentence (> chunk_size tokens) into token windows with overlap."""
@@ -105,6 +82,7 @@ class DocumentChunker:
     def _ensure_sentences_units(self, text: str) -> List[str]:
         """Split into sentences, and further split any that exceed chunk_size tokens."""
         base = self._split_into_sentences(text)
+        logger.info(f"Split text into {len(base)} sentences.")
         result: List[str] = []
         for s in base:
             if self._token_count(s) > self.chunk_size:
@@ -192,6 +170,28 @@ class DocumentChunker:
             ch["metadata"]["chunk_id"] = f"{doc_id}::{ch['metadata']['chunk_index']}"
 
         return chunks
+
+
+
+def test_chunking():
+    chunker = DocumentChunker()
+    with open("/home/daniel/mini-rag/seplat.txt", "r") as test:
+        test_text = test.read()
+    test_metadata = {"source": "test.txt", "title": "Test Document"}
+    
+    try:
+        chunks = chunker.chunk_text(test_text, test_metadata)
+        print(f"Success! Created {len(chunks)} chunks")
+        for i, chunk in enumerate(chunks):
+            print(f"Chunk {i}: {chunk}")
+            
+    except Exception as e:
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    test_chunking()
 
 
 __all__ = ["DocumentChunker"]            
