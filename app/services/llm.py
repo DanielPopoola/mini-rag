@@ -1,8 +1,9 @@
-from typing import List, Dict, Any, Optional, Union, Tuple
+from typing import List, Dict, Any, Optional, Union, Tuple, Type
 import json
 import logging
 import requests
 from dataclasses import dataclass
+from abc import ABC, abstractmethod
 import openai
 import os
 from dotenv import load_dotenv
@@ -12,7 +13,6 @@ dotenv_path = os.path.join(BASE_DIR, ".env")
 load_dotenv(dotenv_path)
 
 logger = logging.getLogger(__name__)
-
 
 @dataclass
 class GenerationResponse:
@@ -24,33 +24,53 @@ class GenerationResponse:
     token_count: int
 
 
-class LocalLLM:
+class BaseLLM(ABC):
+    """Abstract base class that defines the interface all LLM providers must implement"""
+    
+    @abstractmethod
+    def generate_answer(
+        self,
+        query: str,
+        retrieved_chunks: List[Dict[str, Any]],
+        max_tokens: int = 1000
+    ) -> GenerationResponse:
+        """Generate answer with citations from retrieved chunks"""
+        pass
+    
+    @abstractmethod
+    def _build_rag_prompt(self, query: str, chunks: List[Dict[str, Any]]):
+        """Build the RAG prompt - implementation varies by provider"""
+        pass
+    
+    @abstractmethod
+    def _parse_response(self, raw_response: str, chunks: List[Dict[str, Any]], **kwargs) -> GenerationResponse:
+        """Parse the response from the LLM - implementation varies by provider"""
+        pass
+
+    @abstractmethod
+    def health_check(self) -> bool:
+        """Check if the LLM service is healthy and responsive"""
+        pass
+
+
+class LocalLLM(BaseLLM):
+    """Ollama local LLM implementation"""
+    
     def __init__(
         self,
         model_name: str = "gemma3:1b",
         base_url: str = "http://localhost:11434",
         timeout: int = 120
     ):
-        """
-        Initialize connection to local Ollama instance
-        
-        Args:
-            model_name: Ollama model (llama3.1:8b, mistral:7b, etc.)
-            base_url: Ollama API endpoint
-            timeout: Request timeout in seconds
-        """
         self.model_name = model_name
         self.base_url = base_url
         self.api_url = f"{base_url}/api/generate"
         self.timeout = timeout
-
-        # Test connection and ensure model is available
         self._ensure_model_available()
 
     def _ensure_model_available(self):
         """Check if model is available and pull if needed"""
         try:
-            # List available models
             response = requests.get(f"{self.base_url}/api/tags")
             response.raise_for_status()
 
@@ -61,7 +81,6 @@ class LocalLLM:
                 logger.warning(f"Model {self.model_name} not found. Available: {available_models}")
                 logger.info(f"Pulling model {self.model_name}...")
 
-                # Pull the model
                 pull_response = requests.post(
                     f"{self.base_url}/api/pull",
                     json={"name": self.model_name}
@@ -72,16 +91,13 @@ class LocalLLM:
         except requests.exceptions.RequestException as e:
             logger.error(f"Cannot connect to Ollama at {self.base_url}: {e}")
             raise ConnectionError("Ollama is not running or not accessible")
-
+        
     def generate_answer(
-        self,
-        query: str,
-        retrieved_chunks: List[Dict[str, Any]],
-        max_tokens: 1000
+            self,
+            query: str,
+            retrieved_chunks: List[Dict[str, Any]],
+            max_tokens: int = 1000
     ) -> GenerationResponse:
-        """
-        Generate answer with citations from retrieved chunks
-        """
         if not retrieved_chunks:
             return GenerationResponse(
                 answer="I don't have enough information to answer this question.",
@@ -90,28 +106,17 @@ class LocalLLM:
                 reasoning="No relevant chunks were retrieved",
                 token_count=0
             )
-        
-        # Build the prompt with retrieved context
+
         prompt = self._build_rag_prompt(query, retrieved_chunks)
-
-        # Generation response
         raw_response = self._call_ollama(prompt, max_tokens)
-
-        # Parse structured response
         parsed_response = self._parse_response(raw_response, retrieved_chunks)
-
         return parsed_response
 
-    def _build_rag_prompt(self, query: str, chunks: List[Dict[str, Any]]) -> str:
-        """
-        Build a structured prompt that encourages proper citation
-        """
-        # Build context section with numbered references
+    def _build_rag_prompt(self, query: str, chunks: List[Dict[str, Any]]):
         context_parts = []
         for i, chunk in enumerate(chunks, 1):
             source = chunk["metadata"]["source"]
             title = chunk["metadata"].get("title", "Unknown")
-
             context_parts.append(f"[{i}] {chunk['text']}\nSource: {title} ({source})")
 
         context = "\n\n".join(context_parts)
@@ -145,7 +150,6 @@ class LocalLLM:
         return prompt
 
     def _call_ollama(self, prompt: str, max_tokens: int) -> str:
-        """Make request to Ollama API"""
         payload = {
             "model": self.model_name,
             "prompt": prompt,
@@ -161,19 +165,14 @@ class LocalLLM:
         try:
             response = requests.post(self.api_url, json=payload, timeout=self.timeout)
             response.raise_for_status()
-
             result = response.json()
             return result.get("response", "")
         except requests.exceptions.RequestException as e:
             logger.error(f"Error calling Ollama: {e}")
             raise RuntimeError(f"LLM generation failed: {e}")
-
-    def _parse_response(self, raw_response: str, chunks: List[Dict[str, Any]]) -> GenerationResponse:
-        """
-        Parse the structured JSON response from LLM
-        """
+        
+    def _parse_response(self, raw_response: str, chunks: List[Dict[str, Any]], **kwargs) -> GenerationResponse:
         try:
-            # Try to extract JSON from response
             start = raw_response.find('{')
             end = raw_response.rfind('}') + 1
 
@@ -183,18 +182,17 @@ class LocalLLM:
             json_str = raw_response[start:end]
             parsed = json.loads(json_str)
 
-            # Build citations list
             citations = []
             cited_sources = parsed.get("cited_sources", [])
 
             for source_num in cited_sources:
                 if 1 <= source_num <= len(chunks):
-                    chunk = chunks[source_num - 1]  # Convert to 0-based index
+                    chunk = chunks[source_num - 1]
                     citations.append({
                         "citation_id": source_num,
                         "text": chunk["text"][:200] + "..." if len(chunk["text"]) > 200 else chunk["text"],
                         "source": chunk["metadata"]["source"],
-                        "title": chunk["metadata"].get("title", "Unkown"),
+                        "title": chunk["metadata"].get("title", "Unknown"),
                         "rerank_score": chunk.get("rerank_score", 0.0)
                     })
 
@@ -210,7 +208,6 @@ class LocalLLM:
             logger.error(f"Failed to parse LLM response: {e}")
             logger.error(f"Raw response: {raw_response[:500]}...")
 
-            # Fallback response
             return GenerationResponse(
                 answer=raw_response,
                 citations=[],
@@ -219,7 +216,23 @@ class LocalLLM:
                 token_count=len(raw_response.split())
             )
 
-class OpenRouterLLM:
+    def health_check(self) -> bool:
+        """Check if Ollama service is healthy and responsive"""
+        try:
+            response = requests.get(f"{self.base_url}/api/tags", timeout=5)
+            if response.status_code == 200:
+                # Quick test with minimal token generation
+                test_response = self._call_ollama("Hello", max_tokens=1)
+                return len(test_response.strip()) > 0
+            return False
+        except Exception as e:
+            logger.warning(f"Ollama health check failed: {e}")
+            return False
+
+
+class OpenRouterLLM(BaseLLM):
+    """OpenRouter LLM implementation"""
+    
     def __init__(
         self,
         model_name: str = "openai/gpt-oss-20b:free", 
@@ -253,22 +266,17 @@ class OpenRouterLLM:
             )
 
         system_prompt, user_prompt = self._build_rag_prompt(query, retrieved_chunks)
-
-        combined_prompt = (
-            f"SYSTEM:\n{system_prompt}\n\n"
-            f"USER:\n{user_prompt}"
-        )
+        combined_prompt = f"SYSTEM:\n{system_prompt}\n\nUSER:\n{user_prompt}"
 
         try:
             raw_response, token_count = self._call_openrouter(combined_prompt, max_tokens)
-
-            return self._parse_response(raw_response, retrieved_chunks, token_count)
+            return self._parse_response(raw_response, retrieved_chunks, token_count=token_count)
         except Exception as e:
             logger.error(f"Error in generate_answer: {e}")
             raise RuntimeError(f"LLM generation failed: {e}")
 
-    def _build_rag_prompt(self, query: str, chunks: List[Dict[str, Any]]) -> tuple[str, str]:
-        system_prompt = ( """
+    def _build_rag_prompt(self, query: str, chunks: List[Dict[str, Any]]):
+        system_prompt = """
         You are a helpful AI assistant that answers questions based on provided context.
         Follow these rules:
         1. Answer the question using ONLY the information provided in the context.
@@ -277,7 +285,7 @@ class OpenRouterLLM:
         4. Provide a confidence level: high, medium, low, or no_answer.
         5. Be concise but complete.
         Respond in the exact JSON format specified by the user.
-        """ )
+        """
 
         context_parts = []
         for i, chunk in enumerate(chunks, 1):
@@ -303,7 +311,6 @@ class OpenRouterLLM:
         return system_prompt, user_prompt
 
     def _call_openrouter(self, prompt: Union[str, List[Dict[str, str]]], max_tokens: int) -> Tuple[str, int]:
-        """Make request to OpenRouter API"""
         try:
             if isinstance(prompt, str):
                 messages = [{"role": "user", "content": prompt}]
@@ -319,14 +326,15 @@ class OpenRouterLLM:
 
             response_text = completion.choices[0].message.content
             token_count = getattr(completion.usage, "total_tokens", 0)
-
             return response_text, token_count
 
         except Exception as e:
             logger.error(f"Error calling OpenRouter: {e}")
             raise RuntimeError(f"LLM generation failed: {e}")
 
-    def _parse_response(self, raw_response: str, chunks: List[Dict[str, Any]], token_count: int) -> GenerationResponse:
+    def _parse_response(self, raw_response: str, chunks: List[Dict[str, Any]], **kwargs) -> GenerationResponse:
+        token_count = kwargs.get('token_count', 0)
+        
         try:
             parsed = json.loads(raw_response)
 
@@ -362,3 +370,76 @@ class OpenRouterLLM:
                 reasoning="Failed to parse structured response from API.",
                 token_count=token_count
             )
+        
+    def health_check(self) -> bool:
+        """Check if OpenRouter service is healthy and responsive"""
+        try:
+            # Test with a minimal request
+            test_messages = [{"role": "user", "content": "Hi"}]
+            completion = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=test_messages,
+                max_tokens=1,
+                temperature=0.1,
+                timeout=5  # Short timeout for health check
+            )
+            
+            # Check if we got a valid response
+            response_text = completion.choices[0].message.content
+            return response_text is not None
+            
+        except Exception as e:
+            logger.warning(f"OpenRouter health check failed: {e}")
+            return False
+
+
+# Step 3: Create the Factory class
+class LLMFactory:
+    """Factory class for creating LLM instances"""
+    
+    # Registry to store available LLM providers
+    _providers: Dict[str, Type[BaseLLM]] = {}
+    
+    @classmethod
+    def register_provider(cls, name: str, provider_class: Type[BaseLLM]):
+        """Register a new LLM provider"""
+        if not issubclass(provider_class, BaseLLM):
+            raise ValueError(f"Provider {provider_class.__name__} must inherit from BaseLLM")
+        
+        cls._providers[name.lower()] = provider_class
+        logger.info(f"Registered LLM provider: {name}")
+    
+    @classmethod
+    def create_llm(cls, provider: str, **kwargs) -> BaseLLM:
+        """Create an LLM instance based on the provider name"""
+        provider_lower = provider.lower()
+        
+        if provider_lower not in cls._providers:
+            available = ', '.join(cls._providers.keys())
+            raise ValueError(f"Unknown LLM provider: {provider}. Available: {available}")
+        
+        provider_class = cls._providers[provider_lower]
+        
+        try:
+            return provider_class(**kwargs)
+        except Exception as e:
+            logger.error(f"Failed to create {provider} LLM: {e}")
+            raise RuntimeError(f"Could not initialize {provider} LLM: {e}")
+    
+    @classmethod
+    def get_available_providers(cls) -> List[str]:
+        """Get list of available providers"""
+        return list(cls._providers.keys())
+
+
+# Step 4: Register the providers
+LLMFactory.register_provider("ollama", LocalLLM)
+LLMFactory.register_provider("local", LocalLLM)
+LLMFactory.register_provider("openrouter", OpenRouterLLM)
+
+
+# Step 5: Convenience function for easy usage
+def create_llm(provider: str, **kwargs) -> BaseLLM:
+    """Convenience function to create an LLM instance"""
+    return LLMFactory.create_llm(provider, **kwargs)
+

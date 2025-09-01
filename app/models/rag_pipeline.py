@@ -6,7 +6,7 @@ from .embeddings import EmbeddingModel
 from .chunking import DocumentChunker
 from .retrieval import RetrievalSystem
 from ..services.vector_db import VectorDatabase
-from ..services.llm import LocalLLM, GenerationResponse, OpenRouterLLM
+from ..services.llm import BaseLLM, create_llm
 
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ class RAGPipeline:
         embedding_model: EmbeddingModel,
         vector_db: VectorDatabase,
         retrieval_system: RetrievalSystem,
-        llm: LocalLLM,
+        llm: BaseLLM,
         chunker: DocumentChunker
     ):
         self.embedding_model = embedding_model
@@ -110,8 +110,8 @@ def test_integration():
         vector_db.create_collection(dimension=384)
         
         print("3. Creating LLM...")
-        llm = OpenRouterLLM(model_name="deepseek/deepseek-chat-v3.1:free")
-        
+        llm = create_llm("openrouter", model_name="deepseek/deepseek-chat-v3.1:free")
+ 
         print("4. Creating chunker...")
         chunker = DocumentChunker()  # Use default constructor
         
@@ -131,7 +131,7 @@ def test_integration():
         )
         
         print("7. Testing document processing...")
-        with open("/home/daniel/mini-rag/seplat.txt", "r") as f:
+        with open("/home/lisanalgaib/mini-rag/seplat.txt", "r") as f:
             test_text = f.read()
         test_metadata = {"source": "seplat.txt", "title": "Seplat"}
         

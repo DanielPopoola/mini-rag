@@ -4,11 +4,12 @@ import json
 import time
 from typing import Dict, Any, Optional, List
 import logging
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-API_BASE_URL = "http://localhost:9000"
+API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:9000")
 
 class APIClient:
     """Client for communicating with FastAPI backend"""
@@ -155,8 +156,8 @@ with st.sidebar:
     with upload_tab:
         uploaded_file = st.file_uploader(
             "Upload a document",
-            type=["txt", "md"],
-            help="Supported formats: .txt, .md"
+            type=["txt", "md", "pdf", "docx"],
+            help="Supported formats: .txt, .md, .pdf, .docx"
         )
 
         if uploaded_file:
@@ -312,12 +313,12 @@ col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("🗑️ Clear Chat"):
         st.session_state.messages = []
-        st.experimental_rerun()
+        st.rerun()
 
 with col2:
     if st.button("🔄 Restart Session"):
         st.session_state.clear()
-        st.experimental_rerun()
+        st.rerun()
 
 with col3:
     st.caption(f"Connected to API: {API_BASE_URL}")

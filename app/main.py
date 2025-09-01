@@ -7,6 +7,9 @@ import logging
 import time
 import traceback
 from contextlib import asynccontextmanager
+from io import BytesIO
+import pypdf
+import docx
 
 
 from .models.rag_pipeline import RAGPipeline
@@ -14,7 +17,7 @@ from .models.embeddings import EmbeddingModel
 from .models.chunking import DocumentChunker
 from .models.retrieval import RetrievalSystem
 from .services.vector_db import VectorDatabase
-from .services.llm import LocalLLM, OpenRouterLLM
+from .services.llm import BaseLLM, create_llm
 from .config import get_settings
 
 # Configure logging
@@ -40,7 +43,7 @@ async def lifespan(app: FastAPI):
         vector_db.create_collection(dimension=embedding_model.dimension)
 
         logger.info("Initializing LLM...")
-        llm = OpenRouterLLM(model_name="deepseek/deepseek-chat-v3.1:free")
+        llm = create_llm("openrouter", model_name="deepseek/deepseek-chat-v3.1:free")
 
         logger.info("Initializing chunker and retrieval system...")
         chunker = DocumentChunker()
@@ -166,7 +169,7 @@ async def health_check():
             components["vector_db"] = "unhealthy"
 
         try:
-            test_response = pipeline.llm._call_ollama("Test", max_tokens = 5)
+            test_response = pipeline.llm.health_check()
             components["llm"] = "healthy"
         except Exception:
             components["llm"] = "unhealthy"
@@ -224,18 +227,20 @@ async def upload_file(
     try:
         content = await file.read()
 
-        if file.filename.endswith(".txt") or file.filename.endswith(".md"):
+        if file.filename.endswith((".txt", ".md")):
             text = content.decode("utf-8")
         elif file.filename.endswith(".pdf"):
-            from pypdf import PdfReader
-            reader = PdfReader(content)
-            return "".join(page.extract_text() for page in reader.pages)
+            pdf_buffer = BytesIO(content)
+            reader = pypdf.PdfReader(pdf_buffer)
+            text = "".join(page.extract_text() for page in reader.pages)
         elif file.filename.endswith(".docx"):
-            import docx
-            doc = docx.Document(content)
-            return "\n".join([paragraph.text for paragraph in doc.paragraphs])
+            docx_buffer = BytesIO(content)
+            doc = docx.Document(docx_buffer)
+            text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
         else:
-            raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.filename}")
+            raise HTTPException(status_code=400, 
+                detail=f"Unsupported file type: {file.filename}"
+            )
 
         # Process using the text upload endpoint logic
         metadata = {

@@ -103,13 +103,10 @@ class RetrievalSystem:
 
         # Sort by rerank score
         reranked = sorted(initial_results, key=lambda x: x["rerank_score"], reverse=True)
-        logger.info(f"Reranked results before filtering: {reranked}")
 
         # Filter by threshold and return top-k
         filtered_results = [r for r in reranked if r["rerank_score"] >= rerank_threshold]
         
-        logger.info(f"Reranking kept {len(filtered_results)} of {len(reranked)} results with threshold {rerank_threshold}")
-
         return filtered_results[:final_k]
 
     def get_retrieval_stats(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
