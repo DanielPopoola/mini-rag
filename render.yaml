@@ -12,12 +12,17 @@ services:
     name: mini-rag-frontend
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "streamlit run frontend/streamlit_app.py --server.port $PORT"
+    startCommand: "streamlit run frontend/streamlit_app.py --server.port $PORT --server.address 0.0.0.0"
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.0
-      - key: API_BASE_URL
+      - key: API_HOST
         fromService:
           type: web
           name: mini-rag-api
-          property: url
+          property: host
+      - key: API_PORT
+        fromService:
+          type: web
+          name: mini-rag-api
+          property: port
