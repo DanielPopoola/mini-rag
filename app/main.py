@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.response import JSONResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import logging
@@ -14,7 +14,7 @@ from .models.embeddings import EmbeddingModel
 from .models.chunking import DocumentChunker
 from .models.retrieval import RetrievalSystem
 from .services.vector_db import VectorDatabase
-from .services.llm import OpenRouterLLM
+from .services.llm import LocalLLM, OpenRouterLLM
 from .config import get_settings
 
 # Configure logging
@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
         vector_db.create_collection(dimension=embedding_model.dimension)
 
         logger.info("Initializing LLM...")
-        llm = OpenRouterLLM(model_name="deepseek/deepseek-chat-v3.1:free")
+        llm = LocalLLM(model_name="deepseek-r1:7b")
 
         logger.info("Initializing chunker and retrieval system...")
         chunker = DocumentChunker()
@@ -75,7 +75,11 @@ app = FastAPI(
     title="Mini RAG API",
     description="A lightweight RAG system",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    root_path="/api",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
 )
 
 
@@ -132,6 +136,16 @@ class HealthResponse(BaseModel):
     timestamp: float
     components: Dict[str, str]
 
+@app.get("/")
+async def root():
+    """Root endpoint with API information"""
+    return {
+        "name": "Mini RAG API",
+        "version": "1.0.0",
+        "status": "running",
+        "docs": "/docs",
+        "health": "/health"
+    }
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -153,7 +167,7 @@ async def health_check():
             components["vector_db"] = "unhealthy"
 
         try:
-            test_response = pipeline.llm._call_openrouter("Test", max_tokens = 5)
+            test_response = pipeline.llm._call_ollama("Test", max_tokens = 5)
             components["llm"] = "healthy"
         except Exception:
             components["llm"] = "unhealthy"
