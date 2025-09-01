@@ -14,7 +14,7 @@ class RetrievalSystem:
         self,
         embedding_model: EmbeddingModel,
         vector_db: VectorDatabase,
-        reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
+        reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-12-v2",
         reranker_batch_size: int = 16,
         rerank_threshold: float = -10.0,
     ):
