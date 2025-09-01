@@ -312,6 +312,37 @@ class OpenRouterLLM:
         """
         return system_prompt, user_prompt
 
+    def _call_openrouter(self, prompt: str, max_tokens: int) -> str:
+        """Make request to OpenRouter API"""
+        payload = {
+            "model": self.model_name,
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant"},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": max_tokens,
+            "temperature": 0.1,
+            "top_p": 0.9,
+        }
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        try:
+            response = requests.post(
+                self.api_url, json=payload, headers=headers, timeout=self.timeout
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            # Navigate the OpenRouter structure
+            return result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error calling OpenRouter: {e}")
+            raise RuntimeError(f"LLM generation failed: {e}")
+
     def _parse_response(self, raw_response: str, chunks: List[Dict[str, Any]], token_count: int) -> GenerationResponse:
         try:
             parsed = json.loads(raw_response)
