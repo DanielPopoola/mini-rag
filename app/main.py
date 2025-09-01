@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
         vector_db.create_collection(dimension=embedding_model.dimension)
 
         logger.info("Initializing LLM...")
-        llm = LocalLLM(model_name="deepseek-r1:7b")
+        llm = OpenRouterLLM(model_name="deepseek-r1:7b")
 
         logger.info("Initializing chunker and retrieval system...")
         chunker = DocumentChunker()
@@ -167,7 +167,7 @@ async def health_check():
             components["vector_db"] = "unhealthy"
 
         try:
-            test_response = pipeline.llm._call_ollama("Test", max_tokens = 5)
+            test_response = pipeline.llm._call_openrouter("Test", max_tokens = 5)
             components["llm"] = "healthy"
         except Exception:
             components["llm"] = "unhealthy"

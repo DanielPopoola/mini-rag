@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union, Tuple
 import json
 import logging
 import requests
@@ -254,27 +254,17 @@ class OpenRouterLLM:
 
         system_prompt, user_prompt = self._build_rag_prompt(query, retrieved_chunks)
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
+        combined_prompt = (
+            f"SYSTEM:\n{system_prompt}\n\n"
+            f"USER:\n{user_prompt}"
+        )
 
         try:
-            completion = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=0.1,
-                response_format={"type": "json_object"},
-                timeout=self.timeout,
-            )
-            raw_response = completion.choices[0].message.content
-            token_count = completion.usage.total_tokens
-            
-            return self._parse_response(raw_response, retrieved_chunks, token_count)
+            raw_response, token_count = self._call_openrouter(combined_prompt, max_tokens)
 
-        except openai.APIError as e:
-            logger.error(f"Error calling OpenRouter API: {e}")
+            return self._parse_response(raw_response, retrieved_chunks, token_count)
+        except Exception as e:
+            logger.error(f"Error in generate_answer: {e}")
             raise RuntimeError(f"LLM generation failed: {e}")
 
     def _build_rag_prompt(self, query: str, chunks: List[Dict[str, Any]]) -> tuple[str, str]:
@@ -312,34 +302,27 @@ class OpenRouterLLM:
         """
         return system_prompt, user_prompt
 
-    def _call_openrouter(self, prompt: str, max_tokens: int) -> str:
+    def _call_openrouter(self, prompt: Union[str, List[Dict[str, str]]], max_tokens: int) -> Tuple[str, int]:
         """Make request to OpenRouter API"""
-        payload = {
-            "model": self.model_name,
-            "messages": [
-                {"role": "system", "content": "You are a helpful assistant"},
-                {"role": "user", "content": prompt}
-            ],
-            "max_tokens": max_tokens,
-            "temperature": 0.1,
-            "top_p": 0.9,
-        }
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-
         try:
-            response = requests.post(
-                self.api_url, json=payload, headers=headers, timeout=self.timeout
-            )
-            response.raise_for_status()
-            result = response.json()
+            if isinstance(prompt, str):
+                messages = [{"role": "user", "content": prompt}]
+            else:
+                messages = prompt
 
-            # Navigate the OpenRouter structure
-            return result.get("choices", [{}])[0].get("message", {}).get("content", "")
-        except requests.exceptions.RequestException as e:
+            completion = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=0.1
+            )
+
+            response_text = completion.choices[0].message.content
+            token_count = getattr(completion.usage, "total_tokens", 0)
+
+            return response_text, token_count
+
+        except Exception as e:
             logger.error(f"Error calling OpenRouter: {e}")
             raise RuntimeError(f"LLM generation failed: {e}")
 
