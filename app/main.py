@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
         vector_db.create_collection(dimension=embedding_model.dimension)
 
         logger.info("Initializing LLM...")
-        llm = OpenRouterLLM(model_name="deepseek-r1:7b")
+        llm = OpenRouterLLM(model_name="deepseek/deepseek-chat-v3.1:free")
 
         logger.info("Initializing chunker and retrieval system...")
         chunker = DocumentChunker()
@@ -76,7 +76,6 @@ app = FastAPI(
     description="A lightweight RAG system",
     version="1.0.0",
     lifespan=lifespan,
-    root_path="/api",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json"
