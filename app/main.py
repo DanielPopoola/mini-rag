@@ -84,7 +84,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8501"],  # React, Streamlit
+    allow_origins=["http://localhost:3000", "http://localhost:8501"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -166,7 +166,7 @@ async def health_check():
             components["vector_db"] = "unhealthy"
 
         try:
-            test_response = pipeline.llm._call_openrouter("Test", max_tokens = 5)
+            test_response = pipeline.llm._call_ollama("Test", max_tokens = 5)
             components["llm"] = "healthy"
         except Exception:
             components["llm"] = "unhealthy"
