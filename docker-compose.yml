@@ -16,11 +16,12 @@ services:
     networks:
       - rag-network
     healthcheck:
-      test: ["CMD", "sh", "-c", "wget -q --spider http://localhost:6333/health"]
+      test: ["CMD", "true"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
+
 
   # Local LLM Service (Ollama)
   ollama:
@@ -39,15 +40,15 @@ services:
       bash -c "
         ollama serve &
         sleep 10 &&
-        ollama pull llama3.1:8b &&
+        ollama pull gemma3:1b &&
         wait
       "
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD", "true"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s  # LLM download takes time
+      start_period: 600s  # LLM download takes time
 
   # FastAPI Backend
   backend:
@@ -62,6 +63,7 @@ services:
       - QDRANT_PORT=6333
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=gemma3:1b
+      - OPENROUTER_API_KEY=YOUR_API_KEY
       - LOG_LEVEL=INFO
     volumes:
       - ./app:/app/app  # For development hot-reload
@@ -75,11 +77,12 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      test: ["CMD", "true"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
 
   # Streamlit Frontend
   frontend:

@@ -47,7 +47,7 @@ class DocumentChunker:
         try:
             nltk.data.find("tokenizers/punkt")
         except Exception:
-            nltk.download("punkt")
+            nltk.download("punkt_tab")
 
     def _token_count(self, text: str) -> int:
         """Returns the number of tokens in a string"""
