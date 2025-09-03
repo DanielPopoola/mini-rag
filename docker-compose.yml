@@ -16,7 +16,7 @@ services:
     networks:
       - rag-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      test: ["CMD", "sh", "-c", "wget -q --spider http://localhost:6333/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -61,7 +61,7 @@ services:
       - QDRANT_URL=qdrant
       - QDRANT_PORT=6333
       - OLLAMA_BASE_URL=http://ollama:11434
-      - OLLAMA_MODEL=llama3.1:8b
+      - OLLAMA_MODEL=gemma3:1b
       - LOG_LEVEL=INFO
     volumes:
       - ./app:/app/app  # For development hot-reload
@@ -75,7 +75,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -90,7 +90,7 @@ services:
     ports:
       - "8501:8501"
     environment:
-      - API_BASE_URL=http://backend:8000
+      - API_BASE_URL=http://backend:9000
     volumes:
       - ./frontend:/app  # For development hot-reload
     networks:
