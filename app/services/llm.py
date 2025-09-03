@@ -336,7 +336,15 @@ class OpenRouterLLM(BaseLLM):
         token_count = kwargs.get('token_count', 0)
         
         try:
-            parsed = json.loads(raw_response)
+            # Find the start and end of the JSON object
+            start = raw_response.find('{')
+            end = raw_response.rfind('}') + 1
+
+            if start == -1 or end == 0:
+                raise ValueError("No JSON found in response")
+
+            json_str = raw_response[start:end]
+            parsed = json.loads(json_str)
 
             citations = []
             cited_sources = parsed.get("cited_sources", [])
