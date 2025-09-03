@@ -1,0 +1,4 @@
+-r base.txt
+
+# Streamlit
+streamlit>=1.49.1

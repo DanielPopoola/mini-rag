@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     qdrant_api_key: Optional[str]  = None
 
     # LLM
-    ollama_base_url: str = "http://localhost:11434"
+    ollama_base_url: str = "localhost"
     ollama_model: str = "deepseek-r1:7b"
     openrouter_api_key: Optional[str] = None
 
@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        case_sensitive = False
 
 def get_settings() -> Settings:
     return Settings()

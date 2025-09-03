@@ -1,0 +1,23 @@
+- r base.text
+
+# FastAPI and web server
+fastapi[all,standard]>=0.116.1
+uvicorn>=0.35.0
+
+# ML and embeddings
+sentence-transformers>=5.1.0
+transformers>=4.56.0
+qdrant-client>=1.15.1
+nltk>=3.8.1
+ollama>=0.5.3
+openai>=1.102.0
+
+# Documents Libraries
+pypdf>=6.0.0
+python-docx>=1.2.0
+
+# HTTP requests for Ollama
+aiohttp>=3.8.0
+
+# Utilities
+python-json-logger>=2.0.7
